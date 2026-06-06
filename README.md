@@ -1,185 +1,171 @@
-# Yield Curve Reconstruction using the Cox-Ingersoll-Ross (CIR) Model
+# Yield Curve Reconstruction via the Cox-Ingersoll-Ross (CIR) Model
 
-## Overview
+## Project Overview
 
-This project implements and evaluates the **Cox-Ingersoll-Ross (CIR) interest rate model** for yield curve reconstruction using historical zero-coupon yield data.
+This project reconstructs the term structure of interest rates using the **Cox-Ingersoll-Ross (CIR) short-rate model**. Given only the **3-Month zero-coupon yield**, the model estimates yields across multiple maturities, including 6-Month, 9-Month, 1-Year, and 2-Year tenors.
 
-The objective is to calibrate the CIR model using historical yield observations and reconstruct the yield curve using only the observed **3-Month yield** as a proxy for the short rate. Model performance is evaluated on out-of-sample data using standard regression metrics.
+The model is calibrated on historical yield curve data spanning nine maturity buckets and evaluated on an out-of-sample test set. Performance is measured using standard regression metrics and compared against both a CIR++ extension and a baseline linear regression model.
 
-The project was completed as part of the **Finance Club Quantitative Finance Problem Statement**.
+This work was completed as part of the **Finance Club Quantitative Finance Problem Set**.
 
 ---
 
 ## Objectives
 
-- Perform exploratory analysis of historical yield curve data.
-- Calibrate the CIR model parameters:
-  - κ (speed of mean reversion)
-  - θ (long-run mean rate)
-  - σ (volatility)
-- Reconstruct the yield curve from the short rate.
-- Evaluate predictive performance using out-of-sample testing.
-- Explore the CIR++ extension and compare results.
-- Benchmark CIR against a simple Linear Regression model.
+* Perform exploratory analysis of historical zero-coupon yield data.
+* Calibrate CIR parameters ((\kappa), (\theta), (\sigma)) using full-curve information.
+* Reconstruct out-of-sample yields from a single observable input (3-Month yield).
+* Evaluate predictive performance using R², RMSE, and MAE.
+* Compare the base CIR model with a CIR++ extension.
+* Benchmark performance against a linear regression approach.
 
 ---
 
 ## Dataset
 
-The dataset consists of historical zero-coupon yields across multiple maturities:
+The dataset contains historical daily zero-coupon yields across nine maturities:
 
-| Column | Maturity |
-|----------|----------|
-| ZC025YR | 3 Months |
-| ZC050YR | 6 Months |
-| ZC075YR | 9 Months |
-| ZC100YR | 1 Year |
-| ZC200YR | 2 Years |
-| ZC500YR | 5 Years |
+| Column   | Maturity |
+| -------- | -------- |
+| ZC025YR  | 3 Months |
+| ZC050YR  | 6 Months |
+| ZC075YR  | 9 Months |
+| ZC100YR  | 1 Year   |
+| ZC200YR  | 2 Years  |
+| ZC500YR  | 5 Years  |
 | ZC1000YR | 10 Years |
 | ZC2000YR | 20 Years |
 | ZC3000YR | 30 Years |
 
-The training dataset contains historical observations used for calibration, while the test dataset is used for out-of-sample evaluation.
+### Files
+
+* `train_data.csv` – Training dataset (1,976 observations)
+* `test_data.csv` – Ground-truth test dataset
+* `test_data_3M.csv` – Test dataset containing only 3-Month yields
 
 ---
 
-## Methodology
+## Data Quality Assessment
 
-### 1. Data Cleaning
+The following checks were performed:
 
-The dataset was inspected for:
+* Missing value detection
+* Duplicate record identification
+* Data-type verification
+* Outlier inspection using boxplots
 
-- Missing values
-- Duplicate observations
-- Data type consistency
-- Outliers
-
-No missing values or duplicate records were found.
+No significant data-quality issues were identified.
 
 ---
 
-### 2. Exploratory Data Analysis
+## Exploratory Data Analysis
 
-The following analyses were performed:
+The exploratory analysis included:
 
-- Summary statistics
-- Correlation analysis
-- Yield curve evolution across maturities
-- Interest rate regime identification
-- Yield curve snapshots
-- Rolling correlation analysis
+* Cross-maturity correlation heatmap
+* Short-rate time-series analysis
+* Yield co-movement visualization across maturities
+* Distribution analysis of the 3-Month yield
+* Yield curve snapshots across selected dates
 
-These analyses confirmed strong relationships across maturities and supported the use of the 3-Month yield as a short-rate proxy.
-
----
-
-### 3. CIR Model
-
-The short rate follows the CIR stochastic differential equation:
-
-\[
-dr_t = \kappa(\theta-r_t)dt + \sigma\sqrt{r_t}dW_t
-\]
-
-where:
-
-- κ = speed of mean reversion
-- θ = long-run mean rate
-- σ = volatility
-- \(W_t\) = standard Brownian motion
-
-The model satisfies the Feller condition:
-
-\[
-2\kappa\theta \ge \sigma^2
-\]
-
-which ensures positivity of interest rates.
+Results indicated that a dominant common factor explains most yield curve variation, supporting the use of the short rate as the primary state variable.
 
 ---
 
-### 4. Calibration
+## Cox-Ingersoll-Ross (CIR) Model
 
-Instead of calibrating only to the short-rate series, the model was calibrated using the full yield curve from:
+The short-rate process follows:
 
-- 6 Months
-- 9 Months
-- 1 Year
-- 2 Years
-- 5 Years
-- 10 Years
-- 20 Years
-- 30 Years
+[dr_t = \kappa(\theta - r_t),dt + \sigma\sqrt{r_t},dW_t]
 
-A weighted mean squared error objective function was minimized using the **L-BFGS-B** optimization algorithm while enforcing positivity constraints and the Feller condition.
+Where:
 
----
+| Parameter | Description               |
+| --------- | ------------------------- |
+| κ         | Mean-reversion speed      |
+| θ         | Long-run equilibrium rate |
+| σ         | Volatility coefficient    |
 
-### 5. Yield Curve Reconstruction
+To ensure non-negative interest rates, the **Feller condition** is enforced:
 
-Using the calibrated parameters and the observed 3-Month yield:
+[
+2\kappa\theta \geq \sigma^2
+]
 
-1. Zero-coupon bond prices were generated using the CIR bond pricing formula.
-2. Bond prices were converted into continuously compounded yields.
-3. Predicted yields were compared against actual market observations.
+Zero-coupon bond prices are computed using the analytical CIR closed-form solution and converted into continuously compounded yields.
 
 ---
 
-### 6. CIR++ Extension
+## Model Calibration
 
-A deterministic-shift CIR++ model was implemented:
+Parameters were estimated by minimizing a weighted mean-squared error across maturities using the **L-BFGS-B** optimization algorithm.
 
-\[
-y^{CIR++}(T)=y^{CIR}(T)+s(T)
-\]
+Higher weights were assigned to maturities up to 2 Years to align with the evaluation objective.
 
-where \(s(T)\) is a maturity-specific deterministic shift estimated from historical yield spreads.
+### Calibrated Parameters
 
-The extension was evaluated but did not outperform the calibrated CIR model.
+| Parameter | Value  |
+| --------- | ------ |
+| κ         | 0.1725 |
+| θ         | 0.0253 |
+| σ         | 0.0319 |
+
+The calibrated model satisfies the Feller condition.
+---
+
+## CIR++ Extension
+
+A deterministic maturity-specific shift (s(\tau)) was introduced:
+
+[y_{CIR++}(\tau)=y_{CIR}(\tau)+s(\tau)]
+
+where (s(\tau)) represents the average in-sample spread between each maturity and the 3-Month yield.
+
+While this adjustment improved in-sample fit, it did not improve out-of-sample predictive performance due to time-varying spread dynamics.
 
 ---
 
 ## Results
 
-### CIR Model Performance
+### CIR Model – Maturity-Level R²
 
-| Maturity | R² |
-|-----------|-----------|
+| Maturity | R²     |
+| -------- | ------ |
 | 6 Months | 0.9944 |
 | 9 Months | 0.9675 |
-| 1 Year | 0.9104 |
-| 2 Years | 0.3965 |
+| 1 Year   | 0.9104 |
+| 2 Years  | 0.3965 |
 
-### Overall Performance
+### Aggregate Performance
 
-\[
-\boxed{R^2 = 0.8939}
-\]
+[
+R^2 = 0.8939
+]
 
-The model exceeded the project benchmark of **0.85**, demonstrating strong predictive performance.
+The model exceeded the project benchmark of **0.85 R²**.
 
 ---
 
 ## Model Comparison
 
-The CIR model was compared against a simple Linear Regression benchmark.
+| Maturity | CIR R² |
+| -------- | ------ |
+| 6 Months | 0.9956 |
+| 9 Months | 0.9785 |
+| 1 Year   | 0.9114 |
+| 2 Years  | 0.4065 |
 
-The CIR framework outperformed Linear Regression at shorter maturities while providing economically meaningful interpretations through:
-
-- Mean reversion
-- Stochastic interest rate dynamics
-- Positivity constraints
+The CIR framework provides both strong predictive performance and economically interpretable parameters, making it preferable to purely statistical alternatives.
 
 ---
 
 ## Key Findings
 
-- Full-curve calibration significantly improved performance.
-- The CIR model successfully captured the level and slope of the yield curve.
-- Performance was strongest for shorter maturities.
-- The deterministic CIR++ extension did not improve predictive accuracy.
-- The calibrated CIR model achieved the best balance between predictive performance and financial interpretability.
+* Full-curve calibration significantly improved predictive accuracy.
+* The CIR model accurately captures the level and slope of the yield curve at shorter maturities.
+* Predictive accuracy declines for longer horizons, consistent with the limitations of single-factor interest-rate models.
+* The CIR++ constant-shift extension did not outperform the base CIR model.
+* The calibrated CIR model provided the best balance between interpretability and predictive performance.
 
 ---
 
@@ -187,46 +173,37 @@ The CIR framework outperformed Linear Regression at shorter maturities while pro
 
 ```text
 .
-├── FinClubPS1.ipynb
+├── YieldCurve_CIR.ipynb
 ├── README.md
-├── data/
-│   ├── train_data.csv
-│   ├── test_data.csv
-│   └── test_data_3M.csv
-└── figures/
+└── data/
+    ├── train_data.csv
+    ├── test_data.csv
+    └── test_data_3M.csv
 ```
 
 ---
 
-## Technologies Used
+## Dependencies
 
-- Python
-- NumPy
-- Pandas
-- Matplotlib
-- Seaborn
-- SciPy
-- Scikit-Learn
-- Google Colab
+```bash
+pip install pandas numpy scipy scikit-learn matplotlib seaborn
+```
+
+### Required Libraries
+
+* Python 3.x
+* pandas
+* NumPy
+* SciPy
+* scikit-learn
+* Matplotlib
+* Seaborn
 
 ---
 
 ## References
 
-1. Cox, J. C., Ingersoll, J. E., & Ross, S. A. (1985).
-   *A Theory of the Term Structure of Interest Rates.*
-   Econometrica, 53(2), 385–407.
+1. Cox, J. C., Ingersoll, J. E., & Ross, S. A. (1985). *A Theory of the Term Structure of Interest Rates*. Econometrica, 53(2), 385–407.
+2. Brigo, D., & Mercurio, F. (2006). *Interest Rate Models: Theory and Practice*. Springer.
+3. Longstaff, F. A., & Schwartz, E. S. (1992). *Interest Rate Volatility and the Term Structure: A Two-Factor General Equilibrium Model*. Journal of Finance, 47(4), 1259–1282.
 
-2. Brigo, D., & Mercurio, F. (2006).
-   *Interest Rate Models – Theory and Practice.*
-
-3. Longstaff, F. A., & Schwartz, E. S. (1992).
-   *Interest Rate Volatility and the Term Structure: A Two-Factor General Equilibrium Model.*
-
----
-
-## Author
-
-**Grivann Patwa**  
-Civil Engineering, IIT Roorkee  
-Finance Club Quantitative Finance Project
